@@ -1,0 +1,1184 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Panel de Métricas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --ink:#14213D;
+  --ink-2:#1C2E52;
+  --paper:#F3F5F4;
+  --card:#FFFFFF;
+  --accent:#1F7A5C;
+  --accent-dark:#175E46;
+  --accent-soft:#E4F1EC;
+  --warn:#B5541D;
+  --warn-soft:#F6E7DE;
+  --text:#1A2233;
+  --muted:#5B6472;
+  --border:#E2E5E4;
+  --danger:#B3261E;
+  --radius:10px;
+  --shadow:0 1px 2px rgba(20,33,61,.06), 0 1px 1px rgba(20,33,61,.04);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  background:var(--paper);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;}
+a{color:inherit;}
+button{font-family:inherit;}
+input,select,textarea{font-family:inherit;font-size:14px;}
+
+/* ---------- layout shell ---------- */
+#app{min-height:100vh;}
+.shell{display:flex;min-height:100vh;}
+.sidebar{
+  width:236px;flex:0 0 236px;background:var(--ink);color:#EAF0EE;
+  display:flex;flex-direction:column;padding:20px 14px;position:sticky;top:0;height:100vh;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 8px 22px;}
+.brand-mark{width:30px;height:30px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:15px;flex:none;}
+.brand-name{font-weight:700;font-size:15px;letter-spacing:.1px;}
+.nav{display:flex;flex-direction:column;gap:2px;flex:1;}
+.nav a{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;
+  color:#C7D2CC;text-decoration:none;font-size:14px;font-weight:500;cursor:pointer;
+}
+.nav a svg{width:18px;height:18px;flex:none;opacity:.85;}
+.nav a:hover{background:rgba(255,255,255,.06);color:#fff;}
+.nav a.active{background:var(--accent);color:#fff;}
+.nav a.active svg{opacity:1;}
+.sidebar-foot{border-top:1px solid rgba(255,255,255,.12);padding-top:12px;margin-top:8px;}
+.biz-pill{font-size:12.5px;color:#B9C4BF;padding:6px 8px 10px;line-height:1.4;}
+.biz-pill b{color:#fff;display:block;font-size:13.5px;}
+.logout-btn{
+  width:100%;text-align:left;background:none;border:none;color:#C7D2CC;padding:10px 12px;
+  border-radius:8px;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:10px;
+}
+.logout-btn:hover{background:rgba(255,255,255,.06);color:#fff;}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column;}
+.topbar{
+  display:none;align-items:center;justify-content:space-between;gap:10px;background:var(--card);
+  border-bottom:1px solid var(--border);padding:12px 16px;position:sticky;top:0;z-index:20;
+}
+.hamburger{background:none;border:none;padding:8px;margin:-8px;cursor:pointer;color:var(--ink);flex:none;}
+.topbar .biz-name{font-weight:700;font-size:14.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;}
+.content{padding:26px 30px 48px;max-width:1180px;width:100%;margin:0 auto;}
+
+/* mobile drawer */
+.scrim{display:none;position:fixed;inset:0;background:rgba(20,26,36,.4);z-index:29;}
+@media (max-width:920px){
+  .sidebar{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .22s ease;z-index:30;box-shadow:0 0 40px rgba(0,0,0,.25);}
+  .sidebar.open{transform:translateX(0);}
+  .scrim.show{display:block;}
+  .topbar{display:flex;}
+  .content{padding:18px 16px 60px;}
+  .pill{padding:9px 14px;}
+  .icon-btn{padding:8px;}
+}
+
+/* ---------- headings / helpers ---------- */
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px;}
+.page-title{font-size:22px;font-weight:700;margin:0;letter-spacing:-.2px;}
+.page-sub{color:var(--muted);font-size:13.5px;margin-top:3px;}
+.btn{
+  display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#fff;border:none;
+  padding:10px 16px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;
+}
+.btn:hover{background:var(--accent-dark);}
+.btn.secondary{background:var(--card);color:var(--text);border:1px solid var(--border);}
+.btn.secondary:hover{background:#F7F8F8;}
+.btn.danger{background:#fff;color:var(--danger);border:1px solid #EFC9C5;}
+.btn.danger:hover{background:#FCEEED;}
+.btn:disabled{opacity:.55;cursor:default;}
+.btn-sm{padding:7px 11px;font-size:13px;border-radius:7px;}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);}
+.card-pad{padding:18px 20px;}
+
+/* ---------- metrics grid ---------- */
+.metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
+@media (max-width:920px){.metrics-grid{grid-template-columns:repeat(2,1fr);}}
+.metric{padding:16px 18px;}
+.metric .label{font-size:12.5px;color:var(--muted);font-weight:600;}
+.metric .value{font-size:23px;font-weight:800;margin-top:6px;letter-spacing:-.3px;}
+.metric.hero{grid-column:span 2;background:var(--ink);color:#fff;border:none;}
+.metric.hero .label{color:#B9C4BF;}
+.metric.hero .value{font-size:32px;}
+@media (max-width:920px){.metric.hero{grid-column:span 2;}}
+.metric .delta{font-size:12px;margin-top:5px;color:var(--muted);}
+.metric .delta.up{color:var(--accent);}
+.metric .delta.down{color:var(--warn);}
+
+/* ---------- period selector ---------- */
+.period-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:18px;}
+.pill{
+  border:1px solid var(--border);background:#fff;padding:7px 13px;border-radius:999px;font-size:13px;
+  cursor:pointer;color:var(--text);font-weight:500;
+}
+.pill.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+.custom-range{display:flex;gap:8px;align-items:center;}
+.custom-range input{padding:7px 9px;border:1px solid var(--border);border-radius:7px;}
+
+/* ---------- charts ---------- */
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media (max-width:920px){.chart-grid{grid-template-columns:1fr;}}
+.chart-card{padding:16px 18px 10px;}
+.chart-card h4{margin:0 0 10px;font-size:13.5px;font-weight:700;color:var(--text);}
+.chart-card canvas{max-height:230px;}
+
+/* ---------- forms ---------- */
+.form-card{padding:18px 20px;margin-bottom:20px;}
+.form-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:end;}
+@media (max-width:760px){.form-grid{grid-template-columns:1fr 1fr;}}
+.field{display:flex;flex-direction:column;gap:5px;}
+.field label{font-size:12px;font-weight:600;color:var(--muted);}
+.field input,.field select{padding:9px 10px;border:1px solid var(--border);border-radius:7px;background:#fff;}
+.field input:focus,.field select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent);}
+
+/* ---------- tables/lists ---------- */
+.table-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+table{width:100%;min-width:520px;border-collapse:collapse;font-size:13.5px;}
+th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:11px 10px;border-bottom:1px solid #EEF0EF;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+.tag{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:600;}
+.tag.income{background:var(--accent-soft);color:var(--accent-dark);}
+.tag.expense{background:var(--warn-soft);color:var(--warn);}
+.row-actions{display:flex;gap:6px;}
+.icon-btn{background:none;border:none;cursor:pointer;color:var(--muted);padding:5px;border-radius:6px;}
+.icon-btn:hover{background:#F1F2F1;color:var(--text);}
+.empty{padding:36px 10px;text-align:center;color:var(--muted);font-size:13.5px;}
+.search-input{padding:9px 12px;border:1px solid var(--border);border-radius:8px;width:240px;max-width:100%;}
+
+/* ---------- auth screen ---------- */
+.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--ink);padding:20px;}
+.auth-card{background:#fff;border-radius:14px;width:100%;max-width:400px;padding:34px 30px;box-shadow:0 20px 60px rgba(0,0,0,.35);}
+.auth-logo{width:38px;height:38px;border-radius:10px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;margin-bottom:16px;}
+.auth-title{font-size:21px;font-weight:800;margin:0 0 4px;}
+.auth-sub{color:var(--muted);font-size:13.5px;margin-bottom:20px;}
+.auth-tabs{display:flex;gap:4px;background:#F1F2F1;padding:4px;border-radius:9px;margin-bottom:20px;}
+.auth-tabs button{flex:1;border:none;background:none;padding:8px;border-radius:7px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;}
+.auth-tabs button.active{background:#fff;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.08);}
+.auth-field{margin-bottom:13px;}
+.auth-field label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;}
+.auth-field input{width:100%;padding:10px 11px;border:1px solid var(--border);border-radius:8px;}
+.auth-submit{width:100%;padding:11px;margin-top:6px;}
+.auth-msg{font-size:13px;padding:9px 11px;border-radius:8px;margin-bottom:13px;}
+.auth-msg.error{background:#FCEEED;color:var(--danger);}
+.auth-msg.ok{background:var(--accent-soft);color:var(--accent-dark);}
+.auth-link{background:none;border:none;color:var(--accent-dark);font-size:13px;cursor:pointer;padding:0;font-weight:600;}
+
+/* ---------- misc ---------- */
+.section-gap{margin-top:26px;}
+.two-col{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;}
+@media (max-width:920px){.two-col{grid-template-columns:1fr;}}
+.offline-banner{background:#FFF6E5;color:#8A5A00;border:1px solid #F1DDA0;padding:9px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;}
+.spinner{width:22px;height:22px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--accent);animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.center-loading{display:flex;align-items:center;justify-content:center;min-height:60vh;}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;
+  padding:11px 18px;border-radius:9px;font-size:13.5px;z-index:60;box-shadow:0 8px 24px rgba(0,0,0,.25);}
+.modal-scrim{position:fixed;inset:0;background:rgba(20,26,36,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;}
+.modal{background:#fff;border-radius:12px;padding:22px;max-width:380px;width:100%;}
+.modal h3{margin:0 0 14px;font-size:16px;}
+.modal .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;}
+.history-list{display:flex;flex-direction:column;gap:8px;}
+.history-row{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border:1px solid var(--border);border-radius:9px;cursor:pointer;background:#fff;}
+.history-row:hover{border-color:var(--accent);}
+.history-row .m-name{font-weight:700;font-size:14px;}
+.history-row .m-sub{font-size:12px;color:var(--muted);margin-top:2px;}
+.history-detail{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px 16px;background:#FAFBFA;border:1px solid var(--border);border-top:none;border-radius:0 0 9px 9px;margin-top:-9px;font-size:13px;}
+.history-detail div b{display:block;font-size:15px;margin-top:2px;}
+.cat-manage{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+.cat-chip{display:flex;align-items:center;gap:6px;background:#F1F2F1;padding:6px 10px;border-radius:999px;font-size:12.5px;}
+.cat-chip button{background:none;border:none;cursor:pointer;color:var(--muted);padding:0;line-height:1;}
+
+/* ---------- small phones ---------- */
+@media (max-width:480px){
+  .metric .value{font-size:19px;}
+  .metric.hero .value{font-size:26px;}
+  .history-detail{grid-template-columns:repeat(2,1fr);}
+  .form-grid{grid-template-columns:1fr;}
+  .search-input{width:100%;}
+  .page-head{align-items:stretch;}
+  .page-head .btn{width:100%;justify-content:center;}
+  .auth-card{padding:26px 20px;}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* =====================================================================
+   CONFIGURACIÓN SUPABASE
+   ===================================================================== */
+const SUPABASE_URL = "https://iqpggixkfocnnvxjaqdl.supabase.co";
+const SUPABASE_KEY = "sb_publishable_9WrhOcyQSo3_jS_hyalT8g_AKXEx-qK";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+});
+
+const CURRENCY_SYMBOLS = { EUR: "€", USD: "$", GBP: "£", MXN: "$" };
+
+/* =====================================================================
+   ESTADO GLOBAL
+   ===================================================================== */
+const state = {
+  session: null,
+  profile: null,
+  business: null,
+  route: "#/dashboard",
+  sidebarOpen: false,
+  period: "month",
+  customFrom: null,
+  customTo: null,
+  categories: [],
+  offline: false,
+};
+
+function fmtMoney(n) {
+  const sym = CURRENCY_SYMBOLS[state.business?.currency || "EUR"] || "€";
+  const v = (Number(n) || 0).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${v} ${sym}`;
+}
+function fmtDate(d) {
+  if (!d) return "";
+  const dt = new Date(d + "T00:00:00");
+  return dt.toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
+}
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+function escapeHtml(s) { return (s ?? "").toString().replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+function toast(msg) {
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+}
+
+/* =====================================================================
+   RANGOS DE FECHA
+   ===================================================================== */
+function getRange(period) {
+  const now = new Date();
+  const startOfDay = d => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
+  const iso = d => d.toISOString().slice(0,10);
+  let from, to;
+  to = startOfDay(now);
+  switch (period) {
+    case "today":
+      from = startOfDay(now); break;
+    case "week": {
+      const day = (now.getDay() + 6) % 7; // lunes=0
+      from = startOfDay(now); from.setDate(from.getDate() - day);
+      break;
+    }
+    case "month":
+      from = new Date(now.getFullYear(), now.getMonth(), 1); break;
+    case "lastMonth": {
+      from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      to = new Date(now.getFullYear(), now.getMonth(), 0);
+      break;
+    }
+    case "last3":
+      from = new Date(now.getFullYear(), now.getMonth() - 2, 1); break;
+    case "last6":
+      from = new Date(now.getFullYear(), now.getMonth() - 5, 1); break;
+    case "year":
+      from = new Date(now.getFullYear(), 0, 1); break;
+    case "custom":
+      return { from: state.customFrom || iso(startOfDay(now)), to: state.customTo || iso(startOfDay(now)) };
+    default:
+      from = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+  return { from: iso(from), to: iso(to) };
+}
+function prevRange(range) {
+  const from = new Date(range.from), to = new Date(range.to);
+  const days = Math.max(1, Math.round((to - from) / 86400000) + 1);
+  const prevTo = new Date(from); prevTo.setDate(prevTo.getDate() - 1);
+  const prevFrom = new Date(prevTo); prevFrom.setDate(prevFrom.getDate() - days + 1);
+  const iso = d => d.toISOString().slice(0,10);
+  return { from: iso(prevFrom), to: iso(prevTo) };
+}
+
+/* =====================================================================
+   CAPA DE DATOS
+   ===================================================================== */
+const Data = {
+  async getProfile(userId) {
+    const { data, error } = await sb.from("profiles").select("*").eq("id", userId).single();
+    if (error) throw error;
+    return data;
+  },
+  async getBusiness(businessId) {
+    const { data, error } = await sb.from("businesses").select("*").eq("id", businessId).single();
+    if (error) throw error;
+    return data;
+  },
+  async getCategories() {
+    const { data, error } = await sb.from("categories").select("*").order("name");
+    if (error) throw error;
+    return data || [];
+  },
+  async addCategory(name, type) {
+    const { error } = await sb.from("categories").insert({ business_id: state.profile.business_id, name, type });
+    if (error) throw error;
+  },
+  async deleteCategory(id) {
+    const { error } = await sb.from("categories").delete().eq("id", id);
+    if (error) throw error;
+  },
+  async getTransactions(type, from, to) {
+    let q = sb.from("transactions").select("*").order("date", { ascending: false }).order("created_at", { ascending: false });
+    if (type) q = q.eq("type", type);
+    if (from) q = q.gte("date", from);
+    if (to) q = q.lte("date", to);
+    const { data, error } = await q;
+    if (error) throw error;
+    return data || [];
+  },
+  async addTransaction(t) {
+    const { error } = await sb.from("transactions").insert({ ...t, business_id: state.profile.business_id });
+    if (error) throw error;
+  },
+  async deleteTransaction(id) {
+    const { error } = await sb.from("transactions").delete().eq("id", id);
+    if (error) throw error;
+  },
+  async getCustomers() {
+    const { data, error } = await sb.from("customers").select("*").order("created_at", { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+  async addCustomer(c) {
+    const { error } = await sb.from("customers").insert({ ...c, business_id: state.profile.business_id });
+    if (error) throw error;
+  },
+  async updateCustomer(id, c) {
+    const { error } = await sb.from("customers").update(c).eq("id", id);
+    if (error) throw error;
+  },
+  async deleteCustomer(id) {
+    const { error } = await sb.from("customers").delete().eq("id", id);
+    if (error) throw error;
+  },
+  async getSales(from, to) {
+    let q = sb.from("sales").select("*, customers(name)").order("date", { ascending: false }).order("created_at", { ascending: false });
+    if (from) q = q.gte("date", from);
+    if (to) q = q.lte("date", to);
+    const { data, error } = await q;
+    if (error) throw error;
+    return data || [];
+  },
+  async addSale(s) {
+    const { error } = await sb.from("sales").insert({ ...s, business_id: state.profile.business_id });
+    if (error) throw error;
+  },
+  async deleteSale(id) {
+    const { error } = await sb.from("sales").delete().eq("id", id);
+    if (error) throw error;
+  },
+  async getMonthlyStats() {
+    const { data, error } = await sb.from("monthly_stats").select("*").order("month", { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+  async updateBusiness(fields) {
+    const { error } = await sb.from("businesses").update(fields).eq("id", state.profile.business_id);
+    if (error) throw error;
+  },
+};
+
+/* =====================================================================
+   ROUTER
+   ===================================================================== */
+const routes = {
+  "#/dashboard": renderDashboard,
+  "#/ingresos": () => renderTransactions("income"),
+  "#/gastos": () => renderTransactions("expense"),
+  "#/clientes": renderCustomers,
+  "#/ventas": renderSales,
+  "#/historico": renderHistory,
+  "#/configuracion": renderSettings,
+};
+
+window.addEventListener("hashchange", route);
+
+async function route() {
+  const hash = location.hash || "#/dashboard";
+  if (hash.startsWith("#/reset-password")) return renderResetPassword();
+  if (!state.session) return renderAuth();
+  state.route = routes[hash] ? hash : "#/dashboard";
+  await renderShell();
+}
+
+/* =====================================================================
+   ARRANQUE / SESIÓN
+   ===================================================================== */
+async function boot() {
+  renderLoading();
+  const { data: { session } } = await sb.auth.getSession();
+  state.session = session;
+  if (session) await loadUserContext();
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === "PASSWORD_RECOVERY") { location.hash = "#/reset-password"; return; }
+    state.session = session;
+    if (session && !state.profile) {
+      try { await loadUserContext(); } catch (e) { /* ignore */ }
+    }
+    if (!session) { state.profile = null; state.business = null; }
+    route();
+  });
+  route();
+}
+
+async function loadUserContext() {
+  const profile = await Data.getProfile(state.session.user.id);
+  const business = await Data.getBusiness(profile.business_id);
+  const categories = await Data.getCategories();
+  state.profile = profile;
+  state.business = business;
+  state.categories = categories;
+  try {
+    localStorage.setItem("pm_cache_" + business.id, JSON.stringify({ business, profile, savedAt: Date.now() }));
+  } catch (e) {}
+}
+
+boot();
+
+/* =====================================================================
+   PANTALLA: CARGA
+   ===================================================================== */
+function renderLoading() {
+  document.getElementById("app").innerHTML = `<div class="center-loading"><div class="spinner"></div></div>`;
+}
+
+/* =====================================================================
+   PANTALLA: AUTENTICACIÓN
+   ===================================================================== */
+let authMode = "login";
+function renderAuth(msg, msgType) {
+  const app = document.getElementById("app");
+  app.innerHTML = `
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-logo">PM</div>
+      <h1 class="auth-title">Panel de Métricas</h1>
+      <div class="auth-sub">Gestiona los ingresos, gastos y clientes de tu negocio.</div>
+      <div class="auth-tabs">
+        <button id="tab-login" class="${authMode==='login'?'active':''}">Iniciar sesión</button>
+        <button id="tab-signup" class="${authMode==='signup'?'active':''}">Crear cuenta</button>
+      </div>
+      ${msg ? `<div class="auth-msg ${msgType || 'error'}">${escapeHtml(msg)}</div>` : ""}
+      <div id="auth-form"></div>
+    </div>
+  </div>`;
+  document.getElementById("tab-login").onclick = () => { authMode = "login"; renderAuth(); };
+  document.getElementById("tab-signup").onclick = () => { authMode = "signup"; renderAuth(); };
+  const form = document.getElementById("auth-form");
+  if (authMode === "login") {
+    form.innerHTML = `
+      <div class="auth-field"><label>Correo electrónico</label><input id="f-email" type="email" autocomplete="email" placeholder="tu@negocio.com"></div>
+      <div class="auth-field"><label>Contraseña</label><input id="f-pass" type="password" autocomplete="current-password" placeholder="••••••••"></div>
+      <button class="btn auth-submit" id="btn-login">Entrar</button>
+      <div style="text-align:center;margin-top:12px;"><button class="auth-link" id="btn-forgot">¿Olvidaste tu contraseña?</button></div>`;
+    document.getElementById("btn-login").onclick = doLogin;
+    document.getElementById("btn-forgot").onclick = doForgotPassword;
+    form.querySelectorAll("input").forEach(i => i.addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); }));
+  } else {
+    form.innerHTML = `
+      <div class="auth-field"><label>Nombre del negocio</label><input id="f-biz" type="text" placeholder="Panadería Rossi"></div>
+      <div class="auth-field"><label>Correo electrónico</label><input id="f-email" type="email" autocomplete="email" placeholder="tu@negocio.com"></div>
+      <div class="auth-field"><label>Contraseña</label><input id="f-pass" type="password" autocomplete="new-password" placeholder="Mínimo 6 caracteres"></div>
+      <button class="btn auth-submit" id="btn-signup">Crear cuenta</button>`;
+    document.getElementById("btn-signup").onclick = doSignup;
+    form.querySelectorAll("input").forEach(i => i.addEventListener("keydown", e => { if (e.key === "Enter") doSignup(); }));
+  }
+}
+
+async function doLogin() {
+  const email = document.getElementById("f-email").value.trim();
+  const password = document.getElementById("f-pass").value;
+  if (!email || !password) return renderAuth("Introduce tu correo y contraseña.");
+  const btn = document.getElementById("btn-login"); btn.disabled = true; btn.textContent = "Entrando…";
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) return renderAuth(traducirErrorAuth(error.message));
+  state.session = data.session;
+  await loadUserContext();
+  location.hash = "#/dashboard";
+  route();
+}
+
+async function doSignup() {
+  const bizName = document.getElementById("f-biz").value.trim();
+  const email = document.getElementById("f-email").value.trim();
+  const password = document.getElementById("f-pass").value;
+  if (!bizName || !email || !password) return renderAuth("Rellena todos los campos.");
+  if (password.length < 6) return renderAuth("La contraseña debe tener al menos 6 caracteres.");
+  const btn = document.getElementById("btn-signup"); btn.disabled = true; btn.textContent = "Creando…";
+  const { data, error } = await sb.auth.signUp({
+    email, password,
+    options: { data: { business_name: bizName } }
+  });
+  if (error) return renderAuth(traducirErrorAuth(error.message));
+  if (data.session) {
+    state.session = data.session;
+    await loadUserContext();
+    location.hash = "#/dashboard";
+    route();
+  } else {
+    authMode = "login";
+    renderAuth("Cuenta creada. Revisa tu correo para confirmar el acceso y después inicia sesión.", "ok");
+  }
+}
+
+async function doForgotPassword() {
+  const email = document.getElementById("f-email").value.trim();
+  if (!email) return renderAuth("Escribe tu correo electrónico y pulsa de nuevo.");
+  const redirectTo = location.origin + location.pathname + "#/reset-password";
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+  if (error) return renderAuth(traducirErrorAuth(error.message));
+  renderAuth("Te hemos enviado un enlace para restablecer tu contraseña.", "ok");
+}
+
+function traducirErrorAuth(msg) {
+  const m = (msg || "").toLowerCase();
+  if (m.includes("invalid login")) return "Correo o contraseña incorrectos.";
+  if (m.includes("already registered") || m.includes("already exists")) return "Ese correo ya tiene una cuenta.";
+  if (m.includes("password")) return "La contraseña no cumple los requisitos mínimos.";
+  return msg || "Ha ocurrido un error. Inténtalo de nuevo.";
+}
+
+function renderResetPassword() {
+  const app = document.getElementById("app");
+  app.innerHTML = `
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-logo">PM</div>
+      <h1 class="auth-title">Nueva contraseña</h1>
+      <div class="auth-sub">Introduce tu nueva contraseña para tu cuenta.</div>
+      <div id="rp-msg"></div>
+      <div class="auth-field"><label>Nueva contraseña</label><input id="rp-pass" type="password" placeholder="Mínimo 6 caracteres"></div>
+      <button class="btn auth-submit" id="rp-btn">Guardar contraseña</button>
+    </div>
+  </div>`;
+  document.getElementById("rp-btn").onclick = async () => {
+    const pass = document.getElementById("rp-pass").value;
+    if (pass.length < 6) { document.getElementById("rp-msg").innerHTML = `<div class="auth-msg error">Mínimo 6 caracteres.</div>`; return; }
+    const { error } = await sb.auth.updateUser({ password: pass });
+    if (error) { document.getElementById("rp-msg").innerHTML = `<div class="auth-msg error">${escapeHtml(error.message)}</div>`; return; }
+    document.getElementById("rp-msg").innerHTML = `<div class="auth-msg ok">Contraseña actualizada. Redirigiendo…</div>`;
+    setTimeout(() => { location.hash = "#/dashboard"; route(); }, 1200);
+  };
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  state.session = null; state.profile = null; state.business = null;
+  location.hash = "#/dashboard";
+  renderAuth();
+}
+
+/* =====================================================================
+   SHELL (sidebar + topbar + contenido)
+   ===================================================================== */
+const NAV_ITEMS = [
+  { href: "#/dashboard", label: "Inicio", icon: "home" },
+  { href: "#/ingresos", label: "Ingresos", icon: "arrow-up" },
+  { href: "#/gastos", label: "Gastos", icon: "arrow-down" },
+  { href: "#/clientes", label: "Clientes", icon: "users" },
+  { href: "#/ventas", label: "Ventas", icon: "cart" },
+  { href: "#/historico", label: "Histórico", icon: "clock" },
+  { href: "#/configuracion", label: "Configuración", icon: "settings" },
+];
+const ICONS = {
+  home: `<path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/>`,
+  "arrow-up": `<path d="M12 19V6M6 11l6-6 6 6"/>`,
+  "arrow-down": `<path d="M12 5v13M6 13l6 6 6-6"/>`,
+  users: `<circle cx="9" cy="8" r="3"/><path d="M2 20c0-3.3 3-6 7-6s7 2.7 7 6"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14c2.8.3 5 2.6 5 6"/>`,
+  cart: `<circle cx="9" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/><path d="M2.5 4h2l2.2 11.2a2 2 0 0 0 2 1.6h7.4a2 2 0 0 0 2-1.6L20 8H6"/>`,
+  clock: `<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>`,
+  settings: `<circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4.6a7.7 7.7 0 0 0-1.7-1l-.4-2.5h-4l-.4 2.5a7.7 7.7 0 0 0-1.7 1l-2.4-.6-2 3.4L6.4 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-.6a7.7 7.7 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.7 7.7 0 0 0 1.7-1l2.4.6 2-3.4z"/>`,
+};
+function icon(name) { return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||""}</svg>`; }
+
+async function renderShell() {
+  const app = document.getElementById("app");
+  const navHtml = NAV_ITEMS.map(it => `<a href="${it.href}" class="${state.route===it.href?'active':''}" data-nav="${it.href}">${icon(it.icon)}<span>${it.label}</span></a>`).join("");
+  app.innerHTML = `
+  <div class="shell">
+    <div class="scrim" id="scrim"></div>
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><div class="brand-mark">PM</div><div class="brand-name">Panel de Métricas</div></div>
+      <nav class="nav">${navHtml}</nav>
+      <div class="sidebar-foot">
+        <div class="biz-pill"><b>${escapeHtml(state.business?.name || "")}</b>${escapeHtml(state.session?.user?.email || "")}</div>
+        <button class="logout-btn" id="btn-logout">${icon("arrow-down")}<span>Cerrar sesión</span></button>
+      </div>
+    </aside>
+    <div class="main">
+      <div class="topbar">
+        <button class="hamburger" id="btn-hamburger"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+        <div class="biz-name">${escapeHtml(state.business?.name || "")}</div>
+        <div style="width:22px;flex:none;"></div>
+      </div>
+      <div class="content" id="content"><div class="center-loading"><div class="spinner"></div></div></div>
+    </div>
+  </div>`;
+  document.getElementById("btn-logout").onclick = doLogout;
+  document.getElementById("btn-hamburger").onclick = () => { document.getElementById("sidebar").classList.add("open"); document.getElementById("scrim").classList.add("show"); };
+  document.getElementById("scrim").onclick = closeDrawer;
+  document.querySelectorAll("[data-nav]").forEach(a => a.addEventListener("click", closeDrawer));
+  const fn = routes[state.route] || renderDashboard;
+  await fn();
+}
+function closeDrawer() { document.getElementById("sidebar")?.classList.remove("open"); document.getElementById("scrim")?.classList.remove("show"); }
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Buenos días";
+  if (h < 20) return "Buenas tardes";
+  return "Buenas noches";
+}
+
+/* =====================================================================
+   DASHBOARD
+   ===================================================================== */
+let chartRefs = {};
+function destroyCharts() { Object.values(chartRefs).forEach(c => c?.destroy()); chartRefs = {}; }
+
+async function renderDashboard() {
+  const content = document.getElementById("content");
+  const range = getRange(state.period);
+  content.innerHTML = dashboardShellHtml(range);
+  bindPeriodControls(renderDashboard);
+
+  try {
+    const [incomeTx, expenseTx, sales, customers, prevIncome, prevExpense, prevSales, monthly] = await Promise.all([
+      Data.getTransactions("income", range.from, range.to),
+      Data.getTransactions("expense", range.from, range.to),
+      Data.getSales(range.from, range.to),
+      Data.getCustomers(),
+      Data.getTransactions("income", prevRange(range).from, prevRange(range).to),
+      Data.getTransactions("expense", prevRange(range).from, prevRange(range).to),
+      Data.getSales(prevRange(range).from, prevRange(range).to),
+      Data.getMonthlyStats(),
+    ]);
+    state.offline = false;
+    const payload = { incomeTx, expenseTx, sales, customers, prevIncome, prevExpense, prevSales, monthly, range };
+    try { localStorage.setItem("pm_dash_" + state.business.id, JSON.stringify(payload)); } catch (e) {}
+    paintDashboard(payload);
+  } catch (err) {
+    const cached = localStorage.getItem("pm_dash_" + state.business.id);
+    if (cached) {
+      state.offline = true;
+      paintDashboard(JSON.parse(cached), true);
+    } else {
+      content.innerHTML += `<div class="offline-banner">No se han podido cargar los datos. Comprueba tu conexión.</div>`;
+    }
+  }
+}
+
+function dashboardShellHtml(range) {
+  return `
+    <div class="page-head">
+      <div><h1 class="page-title">${greeting()}, ${escapeHtml(state.business?.name || "")}</h1>
+      <div class="page-sub">Resumen de tu negocio · ${fmtDate(range.from)} – ${fmtDate(range.to)}</div></div>
+    </div>
+    ${periodRowHtml()}
+    <div id="dash-body"></div>`;
+}
+
+function periodRowHtml() {
+  const periods = [
+    ["today","Hoy"],["week","Esta semana"],["month","Este mes"],["lastMonth","Mes anterior"],
+    ["last3","Últimos 3 meses"],["last6","Últimos 6 meses"],["year","Este año"],["custom","Personalizado"]
+  ];
+  const pills = periods.map(([k,l]) => `<button class="pill ${state.period===k?'active':''}" data-period="${k}">${l}</button>`).join("");
+  const custom = state.period === "custom" ? `
+    <div class="custom-range">
+      <input type="date" id="cf-from" value="${state.customFrom||todayISO()}">
+      <span>–</span>
+      <input type="date" id="cf-to" value="${state.customTo||todayISO()}">
+      <button class="btn btn-sm" id="cf-apply">Aplicar</button>
+    </div>` : "";
+  return `<div class="period-row">${pills}${custom}</div>`;
+}
+function bindPeriodControls(rerender) {
+  document.querySelectorAll("[data-period]").forEach(b => b.addEventListener("click", () => {
+    state.period = b.dataset.period; rerender();
+  }));
+  const applyBtn = document.getElementById("cf-apply");
+  if (applyBtn) applyBtn.addEventListener("click", () => {
+    state.customFrom = document.getElementById("cf-from").value;
+    state.customTo = document.getElementById("cf-to").value;
+    rerender();
+  });
+}
+
+function sum(arr, key) { return arr.reduce((a,b) => a + Number(b[key]||0), 0); }
+
+function paintDashboard(p, offline) {
+  const body = document.getElementById("dash-body");
+  if (!body) return;
+  const ingresos = sum(p.incomeTx, "amount");
+  const gastos = sum(p.expenseTx, "amount");
+  const ventasTotal = sum(p.sales, "amount");
+  const facturacion = ingresos + ventasTotal;
+  const beneficio = facturacion - gastos;
+  const margen = facturacion > 0 ? (beneficio / facturacion) * 100 : 0;
+  const numVentas = p.sales.length;
+  const ticketMedio = numVentas > 0 ? ventasTotal / numVentas : 0;
+
+  const prevIngresos = sum(p.prevIncome, "amount");
+  const prevVentas = sum(p.prevSales, "amount");
+  const prevGastos = sum(p.prevExpense, "amount");
+  const prevFacturacion = prevIngresos + prevVentas;
+  const prevBeneficio = prevFacturacion - prevGastos;
+  const deltaBeneficio = prevBeneficio !== 0 ? ((beneficio - prevBeneficio) / Math.abs(prevBeneficio)) * 100 : null;
+
+  const now = new Date();
+  const thisMonthKey = now.toISOString().slice(0,7);
+  const lastMonthDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  const lastMonthKey = lastMonthDate.toISOString().slice(0,7);
+  const clientesNuevosMes = p.customers.filter(c => (c.created_at||"").slice(0,7) === thisMonthKey).length;
+  const clientesNuevosMesAnt = p.customers.filter(c => (c.created_at||"").slice(0,7) === lastMonthKey).length;
+
+  body.innerHTML = `
+    ${offline ? `<div class="offline-banner">Mostrando los últimos datos guardados (sin conexión).</div>` : ""}
+    <div class="metrics-grid">
+      <div class="card metric hero">
+        <div class="label">Beneficio</div>
+        <div class="value num">${fmtMoney(beneficio)}</div>
+        ${deltaBeneficio !== null ? `<div class="delta ${deltaBeneficio>=0?'up':'down'}">${deltaBeneficio>=0?'+':''}${deltaBeneficio.toFixed(1)}% vs. periodo anterior</div>` : ""}
+      </div>
+      <div class="card metric"><div class="label">Facturación total</div><div class="value num">${fmtMoney(facturacion)}</div></div>
+      <div class="card metric"><div class="label">Margen de beneficio</div><div class="value num">${margen.toFixed(1)}%</div></div>
+      <div class="card metric"><div class="label">Ingresos</div><div class="value num">${fmtMoney(ingresos)}</div></div>
+      <div class="card metric"><div class="label">Gastos</div><div class="value num">${fmtMoney(gastos)}</div></div>
+      <div class="card metric"><div class="label">Clientes</div><div class="value num">${p.customers.length}</div><div class="delta">+${clientesNuevosMes} este mes (antes ${clientesNuevosMesAnt})</div></div>
+      <div class="card metric"><div class="label">Ventas</div><div class="value num">${numVentas}</div></div>
+      <div class="card metric"><div class="label">Ticket medio</div><div class="value num">${fmtMoney(ticketMedio)}</div></div>
+    </div>
+    <div class="chart-grid" id="chart-grid">
+      ${["ch-ing-dia|Ingresos por día","ch-gas-dia|Gastos por día","ch-ben-dia|Beneficio por día",
+         "ch-ing-mes|Ingresos por mes","ch-gas-mes|Gastos por mes","ch-ben-mes|Beneficio por mes",
+         "ch-clientes|Evolución de clientes","ch-gas-cat|Gastos por categoría","ch-ing-cat|Ingresos por categoría"]
+        .map(pair => { const [id,t] = pair.split("|"); return `<div class="card chart-card"><h4>${t}</h4><canvas id="${id}"></canvas></div>`; }).join("")}
+    </div>`;
+
+  drawDailyCharts(p);
+  drawMonthlyCharts(p.monthly);
+  drawClientEvolution(p.customers);
+  drawCategoryCharts(p.incomeTx, p.expenseTx);
+}
+
+function groupByDay(arr, from, to) {
+  const days = [];
+  const map = {};
+  let d = new Date(from);
+  const end = new Date(to);
+  while (d <= end) { const k = d.toISOString().slice(0,10); days.push(k); map[k]=0; d.setDate(d.getDate()+1); }
+  arr.forEach(t => { if (map[t.date] !== undefined) map[t.date] += Number(t.amount); });
+  return { labels: days.map(k=>fmtDate(k)), values: days.map(k=>map[k]) };
+}
+function lineChart(ctx, labels, values, color) {
+  return new Chart(ctx, { type: "line", data: { labels, datasets: [{ data: values, borderColor: color, backgroundColor: color+"22", fill: true, tension: .3, pointRadius: 0, borderWidth: 2 }] },
+    options: baseChartOpts() });
+}
+function baseChartOpts(extra) {
+  return Object.assign({ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} },
+    scales:{ x:{ ticks:{ maxRotation:0, autoSkip:true, font:{size:10} }, grid:{display:false} }, y:{ ticks:{ font:{size:10} }, grid:{color:"#EEF0EF"} } } }, extra||{});
+}
+function drawDailyCharts(p) {
+  const inc = groupByDay(p.incomeTx, p.range.from, p.range.to);
+  const exp = groupByDay(p.expenseTx, p.range.from, p.range.to);
+  const salesByDay = groupByDay(p.sales, p.range.from, p.range.to);
+  const beneficio = inc.values.map((v,i) => v + salesByDay.values[i] - exp.values[i]);
+  chartRefs.ing = lineChart(document.getElementById("ch-ing-dia"), inc.labels, inc.values, "#1F7A5C");
+  chartRefs.gas = lineChart(document.getElementById("ch-gas-dia"), exp.labels, exp.values, "#B5541D");
+  chartRefs.ben = lineChart(document.getElementById("ch-ben-dia"), inc.labels, beneficio, "#14213D");
+}
+function drawMonthlyCharts(monthly) {
+  const rows = [...monthly].sort((a,b)=>a.month.localeCompare(b.month)).slice(-12);
+  const labels = rows.map(r => new Date(r.month+"T00:00:00").toLocaleDateString("es-ES",{month:"short",year:"2-digit"}));
+  chartRefs.ingM = lineChart(document.getElementById("ch-ing-mes"), labels, rows.map(r=>Number(r.income_total)), "#1F7A5C");
+  chartRefs.gasM = lineChart(document.getElementById("ch-gas-mes"), labels, rows.map(r=>Number(r.expense_total)), "#B5541D");
+  chartRefs.benM = lineChart(document.getElementById("ch-ben-mes"), labels, rows.map(r=>Number(r.profit_total)), "#14213D");
+}
+function drawClientEvolution(customers) {
+  const byMonth = {};
+  customers.forEach(c => { const k = (c.created_at||"").slice(0,7); if(!k) return; byMonth[k]=(byMonth[k]||0)+1; });
+  const months = Object.keys(byMonth).sort();
+  let running = 0;
+  const cum = months.map(m => running += byMonth[m]);
+  const labels = months.map(m => new Date(m+"-01T00:00:00").toLocaleDateString("es-ES",{month:"short",year:"2-digit"}));
+  chartRefs.cli = lineChart(document.getElementById("ch-clientes"), labels.length?labels:["—"], cum.length?cum:[customers.length], "#1F7A5C");
+}
+function drawCategoryCharts(incomeTx, expenseTx) {
+  const byCat = (arr) => { const m={}; arr.forEach(t=>{ m[t.category]=(m[t.category]||0)+Number(t.amount); }); return m; };
+  const palette = ["#1F7A5C","#B5541D","#14213D","#5B6472","#7FB7A1","#D8916A","#3E5C86","#9AA5AE"];
+  const mkDoughnut = (ctx, m) => {
+    const labels = Object.keys(m), values = Object.values(m);
+    return new Chart(ctx, { type: "doughnut", data: { labels, datasets: [{ data: values, backgroundColor: labels.map((_,i)=>palette[i%palette.length]) }] },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:"bottom", labels:{ boxWidth:10, font:{size:10} } } } } });
+  };
+  chartRefs.gasCat = mkDoughnut(document.getElementById("ch-gas-cat"), byCat(expenseTx));
+  chartRefs.ingCat = mkDoughnut(document.getElementById("ch-ing-cat"), byCat(incomeTx));
+}
+
+/* =====================================================================
+   INGRESOS / GASTOS
+   ===================================================================== */
+async function renderTransactions(type) {
+  const isIncome = type === "income";
+  const content = document.getElementById("content");
+  const cats = state.categories.filter(c => c.type === type);
+  content.innerHTML = `
+    <div class="page-head">
+      <div><h1 class="page-title">${isIncome?"Ingresos":"Gastos"}</h1><div class="page-sub">${isIncome?"Registra y consulta tus ingresos.":"Registra y consulta tus gastos."}</div></div>
+      <button class="btn secondary" id="btn-export">Exportar CSV</button>
+    </div>
+    <div class="card form-card">
+      <div class="form-grid">
+        <div class="field"><label>Cantidad</label><input type="number" step="0.01" min="0.01" id="tx-amount" placeholder="0,00"></div>
+        <div class="field"><label>Categoría</label>
+          <select id="tx-category">${cats.map(c=>`<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`).join("")}<option value="__new__">+ Nueva categoría…</option></select>
+        </div>
+        <div class="field"><label>Descripción</label><input type="text" id="tx-desc" placeholder="Opcional"></div>
+        <div class="field"><label>Fecha</label><input type="date" id="tx-date" value="${todayISO()}"></div>
+      </div>
+      <div style="margin-top:12px;"><button class="btn" id="tx-save">+ Añadir ${isIncome?"ingreso":"gasto"}</button></div>
+    </div>
+    <div class="card" id="tx-list-wrap"><div class="center-loading"><div class="spinner"></div></div></div>`;
+
+  document.getElementById("tx-category").addEventListener("change", async (e) => {
+    if (e.target.value === "__new__") {
+      const name = prompt("Nombre de la nueva categoría:");
+      if (name && name.trim()) {
+        try { await Data.addCategory(name.trim(), type); state.categories = await Data.getCategories(); toast("Categoría creada."); renderTransactions(type); }
+        catch (err) { toast("No se pudo crear la categoría."); }
+      } else { e.target.value = cats[0]?.name || ""; }
+    }
+  });
+  document.getElementById("tx-save").addEventListener("click", async () => {
+    const amount = parseFloat(document.getElementById("tx-amount").value);
+    const category = document.getElementById("tx-category").value;
+    const description = document.getElementById("tx-desc").value.trim();
+    const date = document.getElementById("tx-date").value || todayISO();
+    if (!amount || amount <= 0) { toast("Introduce una cantidad válida."); return; }
+    const btn = document.getElementById("tx-save"); btn.disabled = true;
+    try {
+      await Data.addTransaction({ type, amount, category, description, date });
+      toast(`${isIncome?"Ingreso":"Gasto"} guardado.`);
+      renderTransactions(type);
+    } catch (err) { toast("No se pudo guardar."); btn.disabled = false; }
+  });
+  document.getElementById("btn-export").addEventListener("click", async () => {
+    const rows = await Data.getTransactions(type);
+    exportCsv(rows.map(r => ({ fecha:r.date, cantidad:r.amount, categoria:r.category, descripcion:r.description||"" })), (isIncome?"ingresos":"gastos")+".csv");
+  });
+
+  const rows = await Data.getTransactions(type);
+  const wrap = document.getElementById("tx-list-wrap");
+  if (!rows.length) { wrap.innerHTML = `<div class="empty">Todavía no hay ${isIncome?"ingresos":"gastos"} registrados.</div>`; return; }
+  wrap.innerHTML = `<div class="table-scroll"><table><thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th style="text-align:right;">Cantidad</th><th></th></tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td>${fmtDate(r.date)}</td>
+      <td><span class="tag ${type}">${escapeHtml(r.category)}</span></td>
+      <td>${escapeHtml(r.description||"—")}</td>
+      <td style="text-align:right;" class="num">${fmtMoney(r.amount)}</td>
+      <td><div class="row-actions"><button class="icon-btn" data-del="${r.id}" title="Eliminar">✕</button></div></td>
+    </tr>`).join("")}</tbody></table></div>`;
+  wrap.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", () => confirmDialog(
+    `¿Eliminar este ${isIncome?"ingreso":"gasto"}?`, async () => { await Data.deleteTransaction(b.dataset.del); renderTransactions(type); }
+  )));
+}
+
+/* =====================================================================
+   CLIENTES
+   ===================================================================== */
+let customerSearch = "";
+async function renderCustomers() {
+  const content = document.getElementById("content");
+  content.innerHTML = `
+    <div class="page-head">
+      <div><h1 class="page-title">Clientes</h1><div class="page-sub">Gestiona la cartera de clientes de tu negocio.</div></div>
+      <button class="btn secondary" id="btn-export">Exportar CSV</button>
+    </div>
+    <div class="card form-card">
+      <div class="form-grid">
+        <div class="field"><label>Nombre</label><input type="text" id="c-name" placeholder="Nombre completo"></div>
+        <div class="field"><label>Email</label><input type="email" id="c-email" placeholder="Opcional"></div>
+        <div class="field"><label>Teléfono</label><input type="text" id="c-phone" placeholder="Opcional"></div>
+        <div></div>
+      </div>
+      <div style="margin-top:12px;"><button class="btn" id="c-save">+ Añadir cliente</button></div>
+    </div>
+    <div class="page-head" style="margin-bottom:10px;">
+      <input class="search-input" id="c-search" placeholder="Buscar cliente…" value="${escapeHtml(customerSearch)}">
+    </div>
+    <div class="card" id="c-list-wrap"><div class="center-loading"><div class="spinner"></div></div></div>`;
+
+  document.getElementById("c-save").addEventListener("click", async () => {
+    const name = document.getElementById("c-name").value.trim();
+    if (!name) { toast("El nombre es obligatorio."); return; }
+    const email = document.getElementById("c-email").value.trim();
+    const phone = document.getElementById("c-phone").value.trim();
+    try { await Data.addCustomer({ name, email, phone }); toast("Cliente añadido."); renderCustomers(); }
+    catch (e) { toast("No se pudo guardar."); }
+  });
+  document.getElementById("btn-export").addEventListener("click", async () => {
+    const rows = await Data.getCustomers();
+    exportCsv(rows.map(r => ({ nombre:r.name, email:r.email||"", telefono:r.phone||"", alta:r.created_at?.slice(0,10) })), "clientes.csv");
+  });
+  document.getElementById("c-search").addEventListener("input", (e) => { customerSearch = e.target.value; paintCustomerList(allCustomersCache); });
+
+  const rows = await Data.getCustomers();
+  allCustomersCache = rows;
+  paintCustomerList(rows);
+}
+let allCustomersCache = [];
+function paintCustomerList(rows) {
+  const wrap = document.getElementById("c-list-wrap");
+  if (!wrap) return;
+  const q = customerSearch.trim().toLowerCase();
+  const filtered = q ? rows.filter(r => (r.name||"").toLowerCase().includes(q) || (r.email||"").toLowerCase().includes(q)) : rows;
+  if (!filtered.length) { wrap.innerHTML = `<div class="empty">No hay clientes que coincidan.</div>`; return; }
+  wrap.innerHTML = `<div class="table-scroll"><table><thead><tr><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Alta</th><th></th></tr></thead>
+    <tbody>${filtered.map(r => `<tr>
+      <td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.email||"—")}</td><td>${escapeHtml(r.phone||"—")}</td><td>${fmtDate(r.created_at?.slice(0,10))}</td>
+      <td><div class="row-actions">
+        <button class="icon-btn" data-edit="${r.id}" title="Editar">✎</button>
+        <button class="icon-btn" data-del="${r.id}" title="Eliminar">✕</button>
+      </div></td>
+    </tr>`).join("")}</tbody></table></div>`;
+  wrap.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", () => confirmDialog(
+    "¿Eliminar este cliente?", async () => { await Data.deleteCustomer(b.dataset.del); renderCustomers(); }
+  )));
+  wrap.querySelectorAll("[data-edit]").forEach(b => b.addEventListener("click", () => openEditCustomer(rows.find(r=>r.id===b.dataset.edit))));
+}
+function openEditCustomer(cust) {
+  const scrim = document.createElement("div");
+  scrim.className = "modal-scrim";
+  scrim.innerHTML = `<div class="modal">
+    <h3>Editar cliente</h3>
+    <div class="field" style="margin-bottom:10px;"><label>Nombre</label><input id="e-name" value="${escapeHtml(cust.name)}"></div>
+    <div class="field" style="margin-bottom:10px;"><label>Email</label><input id="e-email" value="${escapeHtml(cust.email||"")}"></div>
+    <div class="field"><label>Teléfono</label><input id="e-phone" value="${escapeHtml(cust.phone||"")}"></div>
+    <div class="actions"><button class="btn secondary" id="e-cancel">Cancelar</button><button class="btn" id="e-save">Guardar</button></div>
+  </div>`;
+  document.body.appendChild(scrim);
+  scrim.querySelector("#e-cancel").onclick = () => scrim.remove();
+  scrim.querySelector("#e-save").onclick = async () => {
+    await Data.updateCustomer(cust.id, {
+      name: scrim.querySelector("#e-name").value.trim(),
+      email: scrim.querySelector("#e-email").value.trim(),
+      phone: scrim.querySelector("#e-phone").value.trim(),
+    });
+    scrim.remove(); toast("Cliente actualizado."); renderCustomers();
+  };
+}
+function confirmDialog(msg, onConfirm) {
+  const scrim = document.createElement("div");
+  scrim.className = "modal-scrim";
+  scrim.innerHTML = `<div class="modal"><h3>${escapeHtml(msg)}</h3><div class="actions">
+    <button class="btn secondary" id="cd-no">Cancelar</button><button class="btn danger" id="cd-yes">Eliminar</button></div></div>`;
+  document.body.appendChild(scrim);
+  scrim.querySelector("#cd-no").onclick = () => scrim.remove();
+  scrim.querySelector("#cd-yes").onclick = async () => { scrim.remove(); await onConfirm(); };
+}
+
+/* =====================================================================
+   VENTAS
+   ===================================================================== */
+async function renderSales() {
+  const content = document.getElementById("content");
+  const customers = await Data.getCustomers();
+  content.innerHTML = `
+    <div class="page-head">
+      <div><h1 class="page-title">Ventas</h1><div class="page-sub">Registra cada venta y alimenta automáticamente tus métricas.</div></div>
+      <button class="btn secondary" id="btn-export">Exportar CSV</button>
+    </div>
+    <div class="card form-card">
+      <div class="form-grid">
+        <div class="field"><label>Importe</label><input type="number" step="0.01" min="0.01" id="s-amount" placeholder="0,00"></div>
+        <div class="field"><label>Producto/Servicio</label><input type="text" id="s-product" placeholder="p. ej. Corte de pelo"></div>
+        <div class="field"><label>Cliente</label><select id="s-customer"><option value="">Sin cliente</option>${customers.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("")}</select></div>
+        <div class="field"><label>Fecha</label><input type="date" id="s-date" value="${todayISO()}"></div>
+      </div>
+      <div style="margin-top:12px;"><button class="btn" id="s-save">+ Añadir venta</button></div>
+    </div>
+    <div class="card" id="s-list-wrap"><div class="center-loading"><div class="spinner"></div></div></div>`;
+
+  document.getElementById("s-save").addEventListener("click", async () => {
+    const amount = parseFloat(document.getElementById("s-amount").value);
+    const product = document.getElementById("s-product").value.trim();
+    const customer_id = document.getElementById("s-customer").value || null;
+    const date = document.getElementById("s-date").value || todayISO();
+    if (!amount || amount <= 0 || !product) { toast("Completa el importe y el producto/servicio."); return; }
+    try { await Data.addSale({ amount, product, customer_id, date }); toast("Venta registrada."); renderSales(); }
+    catch (e) { toast("No se pudo guardar."); }
+  });
+  document.getElementById("btn-export").addEventListener("click", async () => {
+    const rows = await Data.getSales();
+    exportCsv(rows.map(r => ({ fecha:r.date, importe:r.amount, producto:r.product, cliente:r.customers?.name||"" })), "ventas.csv");
+  });
+
+  const rows = await Data.getSales();
+  const wrap = document.getElementById("s-list-wrap");
+  if (!rows.length) { wrap.innerHTML = `<div class="empty">Todavía no hay ventas registradas.</div>`; return; }
+  wrap.innerHTML = `<div class="table-scroll"><table><thead><tr><th>Fecha</th><th>Producto/Servicio</th><th>Cliente</th><th style="text-align:right;">Importe</th><th></th></tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td>${fmtDate(r.date)}</td><td>${escapeHtml(r.product)}</td><td>${escapeHtml(r.customers?.name || "—")}</td>
+      <td style="text-align:right;" class="num">${fmtMoney(r.amount)}</td>
+      <td><button class="icon-btn" data-del="${r.id}" title="Eliminar">✕</button></td>
+    </tr>`).join("")}</tbody></table></div>`;
+  wrap.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", () => confirmDialog(
+    "¿Eliminar esta venta?", async () => { await Data.deleteSale(b.dataset.del); renderSales(); }
+  )));
+}
+
+/* =====================================================================
+   HISTÓRICO
+   ===================================================================== */
+async function renderHistory() {
+  const content = document.getElementById("content");
+  content.innerHTML = `
+    <div class="page-head"><div><h1 class="page-title">Histórico</h1><div class="page-sub">Consulta todos los meses anteriores. Tus datos nunca desaparecen.</div></div>
+      <button class="btn secondary" id="btn-export">Exportar resumen CSV</button></div>
+    <div class="history-list" id="hist-list"><div class="center-loading"><div class="spinner"></div></div></div>`;
+  const rows = await Data.getMonthlyStats();
+  document.getElementById("btn-export").addEventListener("click", () => {
+    exportCsv(rows.map(r => ({
+      mes: r.month.slice(0,7), ingresos:r.income_total, gastos:r.expense_total, ventas_importe:r.sales_total,
+      ventas_num:r.sales_count, facturacion:r.revenue_total, beneficio:r.profit_total
+    })), "resumen_mensual.csv");
+  });
+  const list = document.getElementById("hist-list");
+  if (!rows.length) { list.innerHTML = `<div class="empty">Aún no hay histórico. Registra ingresos, gastos o ventas para empezar a construirlo.</div>`; return; }
+  list.innerHTML = rows.map(r => {
+    const label = new Date(r.month+"T00:00:00").toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+    const margen = r.revenue_total > 0 ? (r.profit_total / r.revenue_total) * 100 : 0;
+    const ticket = r.sales_count > 0 ? r.sales_total / r.sales_count : 0;
+    return `<div>
+      <div class="history-row" data-toggle="${r.month}">
+        <div><div class="m-name" style="text-transform:capitalize;">${label}</div><div class="m-sub">Facturación ${fmtMoney(r.revenue_total)} · Beneficio ${fmtMoney(r.profit_total)}</div></div>
+        <div class="num" style="font-weight:700;color:${r.profit_total>=0?'var(--accent)':'var(--warn)'}">${fmtMoney(r.profit_total)}</div>
+      </div>
+      <div class="history-detail" style="display:none;" id="detail-${r.month}">
+        <div>Ingresos<b class="num">${fmtMoney(r.income_total)}</b></div>
+        <div>Gastos<b class="num">${fmtMoney(r.expense_total)}</b></div>
+        <div>Beneficio<b class="num">${fmtMoney(r.profit_total)}</b></div>
+        <div>Ventas<b class="num">${r.sales_count}</b></div>
+        <div>Ticket medio<b class="num">${fmtMoney(ticket)}</b></div>
+        <div>Margen<b class="num">${margen.toFixed(1)}%</b></div>
+      </div>
+    </div>`;
+  }).join("");
+  list.querySelectorAll("[data-toggle]").forEach(row => row.addEventListener("click", () => {
+    const d = document.getElementById("detail-" + row.dataset.toggle);
+    d.style.display = d.style.display === "none" ? "grid" : "none";
+  }));
+}
+
+/* =====================================================================
+   CONFIGURACIÓN
+   ===================================================================== */
+async function renderSettings() {
+  const content = document.getElementById("content");
+  const b = state.business;
+  content.innerHTML = `
+    <div class="page-head"><div><h1 class="page-title">Configuración</h1><div class="page-sub">Datos de tu negocio y categorías.</div></div></div>
+    <div class="two-col">
+      <div class="card card-pad">
+        <h3 style="margin-top:0;font-size:15px;">Datos del negocio</h3>
+        <div class="field" style="margin-bottom:12px;"><label>Nombre del negocio</label><input id="st-name" value="${escapeHtml(b.name)}"></div>
+        <div class="field" style="margin-bottom:12px;"><label>Email de contacto</label><input id="st-email" value="${escapeHtml(b.email||"")}"></div>
+        <div class="field" style="margin-bottom:12px;"><label>Teléfono</label><input id="st-phone" value="${escapeHtml(b.phone||"")}"></div>
+        <div class="field" style="margin-bottom:14px;"><label>Moneda</label>
+          <select id="st-currency">
+            <option value="EUR" ${b.currency==='EUR'?'selected':''}>Euro (€)</option>
+            <option value="USD" ${b.currency==='USD'?'selected':''}>Dólar estadounidense ($)</option>
+            <option value="GBP" ${b.currency==='GBP'?'selected':''}>Libra esterlina (£)</option>
+            <option value="MXN" ${b.currency==='MXN'?'selected':''}>Peso mexicano ($)</option>
+          </select>
+        </div>
+        <button class="btn" id="st-save">Guardar cambios</button>
+      </div>
+      <div class="card card-pad">
+        <h3 style="margin-top:0;font-size:15px;">Categorías de gasto</h3>
+        <div class="cat-manage" id="cat-expense"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;"><input class="search-input" style="width:100%;" id="new-cat-expense" placeholder="Nueva categoría de gasto"><button class="btn btn-sm" id="add-cat-expense">Añadir</button></div>
+        <h3 style="font-size:15px;margin:20px 0 0;">Categorías de ingreso</h3>
+        <div class="cat-manage" id="cat-income"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;"><input class="search-input" style="width:100%;" id="new-cat-income" placeholder="Nueva categoría de ingreso"><button class="btn btn-sm" id="add-cat-income">Añadir</button></div>
+      </div>
+    </div>`;
+
+  document.getElementById("st-save").addEventListener("click", async () => {
+    const fields = {
+      name: document.getElementById("st-name").value.trim() || b.name,
+      email: document.getElementById("st-email").value.trim(),
+      phone: document.getElementById("st-phone").value.trim(),
+      currency: document.getElementById("st-currency").value,
+    };
+    try { await Data.updateBusiness(fields); state.business = await Data.getBusiness(b.id); toast("Datos guardados."); renderShell(); }
+    catch (e) { toast("No se pudo guardar."); }
+  });
+
+  function paintCats() {
+    ["expense","income"].forEach(type => {
+      const el = document.getElementById("cat-"+type);
+      const list = state.categories.filter(c => c.type === type);
+      el.innerHTML = list.map(c => `<div class="cat-chip">${escapeHtml(c.name)}<button data-catdel="${c.id}">✕</button></div>`).join("") || `<span style="color:var(--muted);font-size:12.5px;">Sin categorías.</span>`;
+      el.querySelectorAll("[data-catdel]").forEach(btn => btn.addEventListener("click", () => confirmDialog(
+        "¿Eliminar esta categoría?", async () => { await Data.deleteCategory(btn.dataset.catdel); state.categories = await Data.getCategories(); paintCats(); }
+      )));
+    });
+  }
+  paintCats();
+  ["expense","income"].forEach(type => {
+    document.getElementById("add-cat-"+type).addEventListener("click", async () => {
+      const input = document.getElementById("new-cat-"+type);
+      const name = input.value.trim();
+      if (!name) return;
+      try { await Data.addCategory(name, type); state.categories = await Data.getCategories(); input.value=""; paintCats(); toast("Categoría añadida."); }
+      catch (e) { toast("No se pudo añadir (¿ya existe?)."); }
+    });
+  });
+}
+
+/* =====================================================================
+   EXPORTACIÓN CSV
+   ===================================================================== */
+function exportCsv(rows, filename) {
+  if (!rows.length) { toast("No hay datos para exportar."); return; }
+  const headers = Object.keys(rows[0]);
+  const escape = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lines = [headers.join(","), ...rows.map(r => headers.map(h => escape(r[h])).join(","))];
+  const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
